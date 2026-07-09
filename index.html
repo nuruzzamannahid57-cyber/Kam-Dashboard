@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KAM Escalation Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .truncate-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .kam-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: white; flex-shrink: 0; }
+    .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+    .card-hover { transition: all 0.2s ease; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+    .loading-skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: skeleton 1.5s infinite; }
+    @keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  </style>
+<base target="_blank">
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-slate-900 via-indigo-900 to-blue-900 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center backdrop-blur-sm">
+          <i class="fas fa-chart-line text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight">KAM Escalation Dashboard</h1>
+          <p class="text-indigo-200 text-xs">Real-time issue tracking & ops resolution monitoring</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="text-right hidden md:block">
+          <div id="lastUpdated" class="text-xs text-indigo-200">Loading...</div>
+          <div id="dbStatus" class="text-xs text-emerald-300 flex items-center gap-1 justify-end">
+            <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse-slow"></span> Live
+          </div>
+        </div>
+        <button onclick="refreshData()" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm transition flex items-center gap-2 backdrop-blur-sm border border-white/10">
+          <i class="fas fa-sync-alt" id="refreshIcon"></i> <span class="hidden sm:inline">Refresh</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 py-6">
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Total Escalations</p>
+            <p id="totalCount" class="text-2xl font-bold text-slate-800 mt-1">-</p>
+          </div>
+          <div class="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
+            <i class="fas fa-inbox text-blue-600 text-lg"></i>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1.5 text-xs">
+          <span id="totalTrend" class="text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">-</span>
+          <span class="text-slate-400">vs last 7d</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Pending / Open</p>
+            <p id="openCount" class="text-2xl font-bold text-amber-600 mt-1">-</p>
+          </div>
+          <div class="w-11 h-11 bg-amber-50 rounded-xl flex items-center justify-center">
+            <i class="fas fa-clock text-amber-600 text-lg"></i>
+          </div>
+        </div>
+        <div class="mt-3 text-xs text-slate-500">Awaiting ops response</div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Resolved</p>
+            <p id="resolvedCount" class="text-2xl font-bold text-emerald-600 mt-1">-</p>
+          </div>
+          <div class="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
+            <i class="fas fa-check-circle text-emerald-600 text-lg"></i>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1.5 text-xs">
+          <span id="resolutionRate" class="text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">-</span>
+          <span class="text-slate-400">resolution rate</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Avg Response Time</p>
+            <p id="avgTime" class="text-2xl font-bold text-indigo-600 mt-1">-</p>
+          </div>
+          <div class="w-11 h-11 bg-indigo-50 rounded-xl flex items-center justify-center">
+            <i class="fas fa-stopwatch text-indigo-600 text-lg"></i>
+          </div>
+        </div>
+        <div class="mt-3 text-xs text-slate-500">From created to solved</div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <i class="fas fa-pie-chart text-indigo-500"></i> Status Distribution
+        </h3>
+        <div class="h-48">
+          <canvas id="statusChart"></canvas>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 lg:col-span-2">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <i class="fas fa-chart-bar text-indigo-500"></i> Escalations Over Time
+        </h3>
+        <div class="h-48">
+          <canvas id="timeChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <i class="fas fa-users text-indigo-500"></i> By KAM
+        </h3>
+        <div class="h-48">
+          <canvas id="kamChart"></canvas>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <i class="fas fa-tags text-indigo-500"></i> By Category
+        </h3>
+        <div class="h-48">
+          <canvas id="categoryChart"></canvas>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <i class="fas fa-map-marker-alt text-indigo-500"></i> By Zone
+        </h3>
+        <div class="h-48">
+          <canvas id="zoneChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters & Table -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200">
+      <div class="p-4 border-b border-slate-100">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+            <i class="fas fa-list text-indigo-500"></i> All Escalations
+            <span id="totalBadge" class="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full font-medium">0</span>
+          </h3>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="relative">
+              <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="searchInput" placeholder="Search issues, KAM, ref ID..." 
+                class="pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-56">
+            </div>
+            <select id="statusFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="all">All Status</option>
+            </select>
+            <select id="kamFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="all">All KAMs</option>
+            </select>
+            <select id="zoneFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="all">All Zones</option>
+            </select>
+            <select id="categoryFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="all">All Categories</option>
+            </select>
+            <button onclick="exportData()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition flex items-center gap-2">
+              <i class="fas fa-download"></i> <span class="hidden sm:inline">Export CSV</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Ref ID</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Issue Details</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">KAM</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Zone / Hub</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Created</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Ops Response</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Solved</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-100">
+            <tr><td colspan="10" class="px-4 py-8 text-center text-slate-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="p-3 border-t border-slate-100 flex items-center justify-between">
+        <span id="showingText" class="text-xs text-slate-500">Loading...</span>
+        <div class="flex items-center gap-2">
+          <button onclick="prevPage()" id="prevBtn" class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition">Previous</button>
+          <span id="pageNum" class="text-xs text-slate-600 font-medium">Page 1</span>
+          <button onclick="nextPage()" id="nextBtn" class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition">Next</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Detail Modal -->
+  <div id="detailModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto fade-in">
+      <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-xl">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-file-alt text-indigo-600 text-sm"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-800">Escalation Details</h3>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 transition">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div id="modalContent" class="p-5 space-y-4"></div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================
+    // KAM TEAM (23 members)
+    // ============================================
+    const KAM_TEAM = [
+      "Akash Saha", "Md. Sohel Rana", "Md. Mahmudul Hasan", "Sazzad Haider",
+      "Rizvi Ahmed", "Md. Anik Ahamed", "Md. Asif Rayhan", "Jubayer Rahman",
+      "Rahul Roy", "Ahmed Asif Rashid", "Md Ibrahim Mojumder", "Nuruzzaman Nahid",
+      "Md. Solayman Shadik Shady", "Shabib Md Shahnawaj", "Shohanur Rahman Shuvo",
+      "S. M Shihab", "Md. Kayef Ahmed", "Jaber Al Aunto", "Tanvir Ahmmed",
+      "MD Rakib Chowdhury", "Raian Islam Rudra", "Hasib Islam", "Abdul Goni Howlader"
+    ];
+
+    const KAM_COLORS = [
+      '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
+      '#f43f5e', '#e11d48', '#f97316', '#f59e0b', '#84cc16',
+      '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+      '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+      '#ec4899', '#f43f5e', '#e11d48'
+    ];
+
+    function getKAMColor(kamName) {
+      const idx = KAM_TEAM.indexOf(kamName);
+      return idx >= 0 ? KAM_COLORS[idx] : '#94a3b8';
+    }
+
+    function getKAMInitials(kamName) {
+      if (!kamName) return '?';
+      const parts = kamName.trim().split(/\s+/);
+      if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+      return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    }
+
+    function renderKAMAvatar(kamName) {
+      const color = getKAMColor(kamName);
+      const initials = getKAMInitials(kamName);
+      return `<div class="kam-avatar" style="background-color:${color}" title="${kamName || ''}">${initials}</div>`;
+    }
+
+    // ============================================
+    // CONFIGURATION - Turso Database
+    // ============================================
+    const CONFIG = {
+      tursoUrl: 'https://daily-report-nuruzzamannahid.aws-ap-south-1.turso.io/v2/pipeline',
+      tursoToken: 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODM1MzA4MzksImlkIjoiMDE5ZjMxZjMtN2UwMS03MjUyLWE1MzEtZWE2NTFjZDgzODZhIiwia2lkIjoiNjdVTW9VYWxZcE5Lck5aWHk2M3ZXT3B0RlJMQUptZldCZUxMX0t6dWtMbyIsInJpZCI6ImI2ZmMxNGNlLTlhZDMtNDZkMi05NjM0LTgxN2EzZWQxZDY4ZCJ9.HfbWKB0NRcMM0gq4GpwUVOtth12gp4rF_ONNxjciuka3xTPGL29w7N5xZWtM-Fxj01s5AApJpms9VukXEjsDAw'
+    };
+
+    // ============================================
+    // STATE
+    // ============================================
+    let allData = [];
+    let filteredData = [];
+    let currentPage = 1;
+    const itemsPerPage = 10;
+    let charts = {};
+
+    // ============================================
+    // STATUS & PRIORITY CONFIG
+    // ============================================
+    const STATUS_CONFIG = {
+      'Pending': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: 'fa-clock', color: '#f59e0b' },
+      'In Progress': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: 'fa-spinner fa-spin', color: '#3b82f6' },
+      'Solved': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: 'fa-check-circle', color: '#10b981' },
+      'Closed': { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', icon: 'fa-archive', color: '#6b7280' },
+      'Open': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: 'fa-clock', color: '#f59e0b' },
+      'Resolved': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: 'fa-check-circle', color: '#10b981' }
+    };
+
+    // ============================================
+    // DATA FETCHING from Turso
+    // ============================================
+    async function fetchData() {
+      try {
+        const response = await fetch(CONFIG.tursoUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${CONFIG.tursoToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            requests: [
+              { type: "execute", stmt: { sql: "SELECT * FROM escalations ORDER BY created_at DESC" } },
+              { type: "close" }
+            ]
+          })
+        });
+
+        if (!response.ok) throw new Error('API failed: ' + response.status);
+
+        const result = await response.json();
+        const executeResult = result.results[0].response.result;
+        const cols = executeResult.cols.map(c => c.name);
+        const rows = executeResult.rows;
+
+        allData = rows.map(row => {
+          const obj = {};
+          cols.forEach((col, i) => {
+            const val = row[i];
+            obj[col] = val.type === 'null' ? null : val.value;
+          });
+          // Normalize status for consistency
+          obj._statusNormalized = normalizeStatus(obj.issue_status);
+          return obj;
+        });
+
+      } catch (e) {
+        console.error('Fetch error:', e);
+        document.getElementById('dbStatus').innerHTML = '<span class="w-2 h-2 bg-red-400 rounded-full"></span> Offline';
+        document.getElementById('dbStatus').className = 'text-xs text-red-300 flex items-center gap-1 justify-end';
+        // Show error in table
+        document.getElementById('tableBody').innerHTML = `<tr><td colspan="10" class="px-4 py-8 text-center text-red-400"><i class="fas fa-exclamation-triangle mr-2"></i> Failed to load data: ${e.message}</td></tr>`;
+        return;
+      }
+
+      filteredData = [...allData];
+      updateFilters();
+      renderAll();
+
+      document.getElementById('dbStatus').innerHTML = '<span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse-slow"></span> Live';
+      document.getElementById('dbStatus').className = 'text-xs text-emerald-300 flex items-center gap-1 justify-end';
+    }
+
+    function normalizeStatus(status) {
+      if (!status) return 'Pending';
+      const s = status.toString().trim();
+      if (s === 'Pending') return 'Pending';
+      if (s === 'In Progress') return 'In Progress';
+      if (s === 'Solved' || s === 'Resolved') return 'Solved';
+      if (s === 'Closed') return 'Closed';
+      return s;
+    }
+
+    // ============================================
+    // RENDERING
+    // ============================================
+    function renderAll() {
+      renderKPIs();
+      renderCharts();
+      renderTable();
+      updatePagination();
+    }
+
+    function renderKPIs() {
+      const total = allData.length;
+      const pending = allData.filter(d => d._statusNormalized === 'Pending').length;
+      const inProgress = allData.filter(d => d._statusNormalized === 'In Progress').length;
+      const solved = allData.filter(d => d._statusNormalized === 'Solved' || d._statusNormalized === 'Closed').length;
+      const openCount = pending + inProgress;
+
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('openCount').textContent = openCount;
+      document.getElementById('resolvedCount').textContent = solved;
+      document.getElementById('totalBadge').textContent = total;
+
+      const rate = total > 0 ? Math.round((solved / total) * 100) : 0;
+      document.getElementById('resolutionRate').textContent = rate + '%';
+
+      // Avg response time from response_time_mins
+      const validTimes = allData.filter(d => d.response_time_mins !== null && d.response_time_mins !== '');
+      let avgMins = 0;
+      if (validTimes.length > 0) {
+        const totalMins = validTimes.reduce((sum, d) => sum + (parseInt(d.response_time_mins) || 0), 0);
+        avgMins = Math.round(totalMins / validTimes.length);
+      }
+
+      const hours = Math.floor(Math.abs(avgMins) / 60);
+      const mins = Math.abs(avgMins) % 60;
+      const sign = avgMins < 0 ? '-' : '';
+      document.getElementById('avgTime').textContent = sign + (hours > 0 ? hours + 'h ' : '') + mins + 'm';
+
+      document.getElementById('totalTrend').textContent = total > 0 ? '+' + total : '0';
+      document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+    }
+
+    function renderCharts() {
+      // Status Distribution
+      const statusCounts = {};
+      allData.forEach(d => { statusCounts[d._statusNormalized] = (statusCounts[d._statusNormalized] || 0) + 1; });
+
+      const statusLabels = Object.keys(statusCounts);
+      const statusValues = Object.values(statusCounts);
+      const statusColors = statusLabels.map(s => STATUS_CONFIG[s]?.color || '#94a3b8');
+
+      if (charts.status) charts.status.destroy();
+      charts.status = new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: {
+          labels: statusLabels,
+          datasets: [{
+            data: statusValues,
+            backgroundColor: statusColors,
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 }, padding: 12 } }
+          }
+        }
+      });
+
+      // Time chart
+      const dateCounts = {};
+      allData.forEach(d => {
+        const date = d.created_at ? d.created_at.split(' ')[0] : 'Unknown';
+        dateCounts[date] = (dateCounts[date] || 0) + 1;
+      });
+      const sortedDates = Object.keys(dateCounts).sort();
+
+      if (charts.time) charts.time.destroy();
+      charts.time = new Chart(document.getElementById('timeChart'), {
+        type: 'bar',
+        data: {
+          labels: sortedDates.map(d => {
+            const date = new Date(d);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          }),
+          datasets: [{
+            label: 'Escalations',
+            data: sortedDates.map(d => dateCounts[d]),
+            backgroundColor: '#6366f1',
+            borderRadius: 6,
+            barThickness: 24
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+            x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+          }
+        }
+      });
+
+      // KAM Chart
+      const kamCounts = {};
+      allData.forEach(d => { if (d.kam_name) kamCounts[d.kam_name] = (kamCounts[d.kam_name] || 0) + 1; });
+      const kamNames = Object.keys(kamCounts);
+
+      if (charts.kam) charts.kam.destroy();
+      charts.kam = new Chart(document.getElementById('kamChart'), {
+        type: 'bar',
+        data: {
+          labels: kamNames.map(n => n.split(' ').slice(-1)[0]),
+          datasets: [{
+            label: 'Escalations',
+            data: Object.values(kamCounts),
+            backgroundColor: kamNames.map(n => getKAMColor(n)),
+            borderRadius: 4,
+            barThickness: 18
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+            x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 45 } }
+          }
+        }
+      });
+
+      // Category Chart
+      const catCounts = {};
+      allData.forEach(d => { if (d.issue_category) catCounts[d.issue_category] = (catCounts[d.issue_category] || 0) + 1; });
+
+      if (charts.category) charts.category.destroy();
+      charts.category = new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(catCounts),
+          datasets: [{
+            data: Object.values(catCounts),
+            backgroundColor: ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '55%',
+          plugins: {
+            legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } }
+          }
+        }
+      });
+
+      // Zone Chart
+      const zoneCounts = {};
+      allData.forEach(d => { if (d.zone) zoneCounts[d.zone] = (zoneCounts[d.zone] || 0) + 1; });
+
+      if (charts.zone) charts.zone.destroy();
+      charts.zone = new Chart(document.getElementById('zoneChart'), {
+        type: 'pie',
+        data: {
+          labels: Object.keys(zoneCounts),
+          datasets: [{
+            data: Object.values(zoneCounts),
+            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } }
+          }
+        }
+      });
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      const pageData = filteredData.slice(start, end);
+
+      if (pageData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="px-4 py-8 text-center text-slate-400"><i class="fas fa-inbox mr-2"></i> No records found</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = pageData.map(item => {
+        const status = item._statusNormalized || 'Pending';
+        const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['Pending'];
+        const createdDate = item.created_at ? formatDate(item.created_at) : '-';
+        const solvedDate = item.solved_at ? formatDate(item.solved_at) : '-';
+        const avatar = renderKAMAvatar(item.kam_name);
+
+        return `
+          <tr class="hover:bg-slate-50 transition group">
+            <td class="px-4 py-3 text-sm font-mono text-slate-500 whitespace-nowrap">${item.ref_id || '#' + item.id}</td>
+            <td class="px-4 py-3 text-sm text-slate-800">
+              <div class="truncate-2 max-w-xs" title="${item.issue_details || ''}">${item.issue_details || '-'}</div>
+              ${item.issue_sub_category ? `<div class="text-xs text-slate-400 mt-0.5">${item.issue_sub_category}</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-sm text-slate-600">
+              <div class="flex items-center gap-2">
+                ${avatar}
+                <span class="truncate max-w-[100px]" title="${item.kam_name || ''}">${item.kam_name || '-'}</span>
+              </div>
+            </td>
+            <td class="px-4 py-3 text-sm text-slate-600">
+              <div>${item.zone || '-'}</div>
+              ${item.concern_hub ? `<div class="text-xs text-slate-400">${item.concern_hub}</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-sm text-slate-600">
+              <span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs">${item.issue_category || '-'}</span>
+            </td>
+            <td class="px-4 py-3">
+              <span class="status-badge ${cfg.bg} ${cfg.text} border ${cfg.border}">
+                <i class="fas ${cfg.icon} text-[10px]"></i> ${status}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">${createdDate}</td>
+            <td class="px-4 py-3 text-sm text-slate-600 max-w-[150px]">
+              <div class="truncate" title="${item.ops_remarks || ''}">
+                ${item.ops_remarks ? item.ops_remarks : '<span class="text-slate-400 italic text-xs">No response</span>'}
+              </div>
+            </td>
+            <td class="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">${solvedDate !== '-' ? '<span class="text-emerald-600"><i class="fas fa-check text-xs mr-1"></i>' + solvedDate + '</span>' : '<span class="text-slate-300">-</span>'}</td>
+            <td class="px-4 py-3">
+              <button onclick="viewDetails(${item.id})" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium px-2 py-1 rounded hover:bg-indigo-50 transition">
+                View
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('showingText').textContent = `Showing ${filteredData.length} entries`;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      } catch { return dateStr; }
+    }
+
+    function formatDateTime(dateStr) {
+      if (!dateStr) return '-';
+      try {
+        const d = new Date(dateStr);
+        return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch { return dateStr; }
+    }
+
+    function updatePagination() {
+      const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
+      document.getElementById('pageNum').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('prevBtn').disabled = currentPage <= 1;
+      document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    }
+
+    function updateFilters() {
+      // Status filter
+      const statuses = [...new Set(allData.map(d => d.issue_status).filter(Boolean))].sort();
+      const statusSelect = document.getElementById('statusFilter');
+      statusSelect.innerHTML = '<option value="all">All Status</option>' + 
+        statuses.map(s => `<option value="${s}">${s}</option>`).join('');
+
+      // KAM filter
+      const kams = [...new Set(allData.map(d => d.kam_name).filter(Boolean))].sort();
+      const kamSelect = document.getElementById('kamFilter');
+      kamSelect.innerHTML = '<option value="all">All KAMs</option>' + 
+        kams.map(k => `<option value="${k}">${k}</option>`).join('');
+
+      // Zone filter
+      const zones = [...new Set(allData.map(d => d.zone).filter(Boolean))].sort();
+      const zoneSelect = document.getElementById('zoneFilter');
+      zoneSelect.innerHTML = '<option value="all">All Zones</option>' + 
+        zones.map(z => `<option value="${z}">${z}</option>`).join('');
+
+      // Category filter
+      const cats = [...new Set(allData.map(d => d.issue_category).filter(Boolean))].sort();
+      const catSelect = document.getElementById('categoryFilter');
+      catSelect.innerHTML = '<option value="all">All Categories</option>' + 
+        cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    // ============================================
+    // FILTERS
+    // ============================================
+    function applyFilters() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const status = document.getElementById('statusFilter').value;
+      const kam = document.getElementById('kamFilter').value;
+      const zone = document.getElementById('zoneFilter').value;
+      const category = document.getElementById('categoryFilter').value;
+
+      filteredData = allData.filter(item => {
+        const matchSearch = !search || 
+          (item.issue_details || '').toLowerCase().includes(search) ||
+          (item.kam_name || '').toLowerCase().includes(search) ||
+          (item.ref_id || '').toLowerCase().includes(search) ||
+          (item.merchant_id || '').toLowerCase().includes(search) ||
+          (item.issue_category || '').toLowerCase().includes(search);
+        const matchStatus = status === 'all' || item.issue_status === status;
+        const matchKAM = kam === 'all' || item.kam_name === kam;
+        const matchZone = zone === 'all' || item.zone === zone;
+        const matchCategory = category === 'all' || item.issue_category === category;
+        return matchSearch && matchStatus && matchKAM && matchZone && matchCategory;
+      });
+
+      currentPage = 1;
+      renderTable();
+      updatePagination();
+    }
+
+    // ============================================
+    // PAGINATION
+    // ============================================
+    function prevPage() { 
+      if (currentPage > 1) { currentPage--; renderTable(); updatePagination(); } 
+    }
+    function nextPage() { 
+      const totalPages = Math.ceil(filteredData.length / itemsPerPage); 
+      if (currentPage < totalPages) { currentPage++; renderTable(); updatePagination(); } 
+    }
+
+    // ============================================
+    // MODAL
+    // ============================================
+    function viewDetails(id) {
+      const item = allData.find(d => d.id == id);
+      if (!item) return;
+
+      const status = item._statusNormalized || 'Pending';
+      const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['Pending'];
+      const avatar = renderKAMAvatar(item.kam_name);
+
+      document.getElementById('modalContent').innerHTML = `
+        <div class="flex items-center gap-3 mb-4">
+          ${avatar}
+          <div>
+            <div class="font-semibold text-slate-800">${item.kam_name || 'Unknown KAM'}</div>
+            <div class="text-xs text-slate-500">${item.ref_id || '#' + item.id}</div>
+          </div>
+          <div class="ml-auto">
+            <span class="status-badge ${cfg.bg} ${cfg.text} border ${cfg.border}">
+              <i class="fas ${cfg.icon} text-[10px]"></i> ${status}
+            </span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Merchant ID</span>
+            <p class="font-mono text-slate-700 mt-1">${item.merchant_id || '-'}</p>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Channel</span>
+            <p class="text-slate-700 mt-1">${item.channel || '-'}</p>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Zone</span>
+            <p class="text-slate-700 mt-1">${item.zone || '-'}</p>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Concern Hub</span>
+            <p class="text-slate-700 mt-1">${item.concern_hub || '-'}</p>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Category</span>
+            <p class="text-slate-700 mt-1">${item.issue_category || '-'}</p>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Sub Category</span>
+            <p class="text-slate-700 mt-1">${item.issue_sub_category || '-'}</p>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Created</span>
+            <p class="text-slate-700 mt-1">${formatDateTime(item.created_at)}</p>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Updated</span>
+            <p class="text-slate-700 mt-1">${formatDateTime(item.updated_at)}</p>
+          </div>
+        </div>
+
+        <div class="p-4 bg-slate-50 rounded-lg border border-slate-100">
+          <h4 class="font-semibold text-slate-700 mb-2 text-sm flex items-center gap-2">
+            <i class="fas fa-file-alt text-slate-400"></i> Issue Details
+          </h4>
+          <p class="text-slate-600 text-sm leading-relaxed">${item.issue_details || 'No details provided'}</p>
+        </div>
+
+        <div class="p-4 bg-blue-50 rounded-lg border border-blue-100">
+          <h4 class="font-semibold text-blue-800 mb-2 text-sm flex items-center gap-2">
+            <i class="fas fa-reply text-blue-500"></i> Ops Remarks
+          </h4>
+          <p class="text-blue-700 text-sm leading-relaxed">${item.ops_remarks || '<span class="italic">No ops response yet.</span>'}</p>
+        </div>
+
+        ${item.resolution_type ? `
+        <div class="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+          <h4 class="font-semibold text-emerald-800 mb-2 text-sm flex items-center gap-2">
+            <i class="fas fa-check-circle text-emerald-500"></i> Resolution
+          </h4>
+          <p class="text-emerald-700 text-sm">${item.resolution_type}</p>
+          ${item.solved_at ? `<p class="text-emerald-600 text-xs mt-1">Solved on ${formatDateTime(item.solved_at)}</p>` : ''}
+          ${item.response_time_mins ? `<p class="text-emerald-600 text-xs mt-1">Response time: ${item.response_time_mins} mins</p>` : ''}
+        </div>
+        ` : ''}
+      `;
+
+      document.getElementById('detailModal').classList.remove('hidden');
+      document.getElementById('detailModal').classList.add('flex');
+    }
+
+    function closeModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+      document.getElementById('detailModal').classList.remove('flex');
+    }
+
+    // ============================================
+    // EXPORT
+    // ============================================
+    function exportData() {
+      const headers = ['ID', 'Ref ID', 'Merchant ID', 'KAM', 'Channel', 'Zone', 'Concern Hub', 'Status', 'Category', 'Sub Category', 'Issue Details', 'Created At', 'Ops Remarks', 'Resolution Type', 'Response Time (mins)', 'Solved At', 'Updated At'];
+      const rows = filteredData.map(d => [
+        d.id, d.ref_id || '', d.merchant_id || '', d.kam_name || '', d.channel || '',
+        d.zone || '', d.concern_hub || '', d.issue_status || '', d.issue_category || '',
+        d.issue_sub_category || '', '"' + (d.issue_details || '').replace(/"/g, '""') + '"',
+        d.created_at || '', '"' + (d.ops_remarks || '').replace(/"/g, '""') + '"',
+        d.resolution_type || '', d.response_time_mins || '', d.solved_at || '', d.updated_at || ''
+      ]);
+
+      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kam_escalations_' + new Date().toISOString().split('T')[0] + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function refreshData() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('fa-spin');
+      fetchData().then(() => {
+        setTimeout(() => icon.classList.remove('fa-spin'), 600);
+      });
+    }
+
+    // ============================================
+    // EVENT LISTENERS
+    // ============================================
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('statusFilter').addEventListener('change', applyFilters);
+    document.getElementById('kamFilter').addEventListener('change', applyFilters);
+    document.getElementById('zoneFilter').addEventListener('change', applyFilters);
+    document.getElementById('categoryFilter').addEventListener('change', applyFilters);
+
+    document.getElementById('detailModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('detailModal')) closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // ============================================
+    // INIT
+    // ============================================
+    fetchData();
+
+    // Auto refresh every 60 seconds
+    setInterval(fetchData, 60000);
+  </script>
+</body>
+</html>
