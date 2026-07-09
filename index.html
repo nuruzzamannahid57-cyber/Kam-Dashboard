@@ -99,6 +99,19 @@
   <!-- Main Content -->
   <main class="max-w-7xl mx-auto px-4 py-6">
 
+    <!-- Tab Navigation -->
+    <div class="inline-flex bg-white rounded-lg shadow-sm border border-slate-200 p-1 mb-5">
+      <button id="tabBtn-overview" onclick="switchTab('overview')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition">
+        <i class="fas fa-gauge-high mr-1.5"></i>Overview
+      </button>
+      <button id="tabBtn-kam" onclick="switchTab('kam')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition">
+        <i class="fas fa-users mr-1.5"></i>KAM Analytics
+      </button>
+    </div>
+
+    <!-- ===================== TAB: OVERVIEW ===================== -->
+    <div id="tab-overview">
+
     <!-- KPI Cards -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
@@ -273,6 +286,120 @@
         </div>
       </div>
     </div>
+
+    </div> <!-- /#tab-overview -->
+
+    <!-- ===================== TAB: KAM ANALYTICS ===================== -->
+    <div id="tab-kam" class="hidden">
+
+      <!-- KAM Summary KPIs -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Active KAMs</p>
+              <p id="kamActiveCount" class="text-2xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+            <div class="w-11 h-11 bg-[#FEF6DC] rounded-xl flex items-center justify-center">
+              <i class="fas fa-users text-[#c99400] text-lg"></i>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-slate-500">With at least one issue</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Total Issues</p>
+              <p id="kamTotalIssues" class="text-2xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+            <div class="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-inbox text-blue-600 text-lg"></i>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-slate-500">Across all KAMs</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Avg / KAM</p>
+              <p id="kamAvgIssues" class="text-2xl font-bold text-indigo-600 mt-1" style="color:#c99400">-</p>
+            </div>
+            <div class="w-11 h-11 bg-[#FEF6DC] rounded-xl flex items-center justify-center">
+              <i class="fas fa-scale-balanced text-[#c99400] text-lg"></i>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-slate-500">Issues per active KAM</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Busiest KAM</p>
+              <p id="kamTopName" class="text-lg font-bold text-slate-800 mt-1 truncate">-</p>
+            </div>
+            <div class="w-11 h-11 bg-amber-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-fire text-amber-600 text-lg"></i>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-slate-500"><span id="kamTopCount">-</span> issues logged</div>
+        </div>
+      </div>
+
+      <!-- Total Issues by KAM chart -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <i class="fas fa-chart-bar text-[#c99400]"></i> Total Issues by KAM
+        </h3>
+        <div class="h-64">
+          <canvas id="kamTotalsChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Daily trend per KAM -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <i class="fas fa-chart-line text-[#c99400]"></i> Daily Issue Trend
+          </h3>
+          <select id="kamTrendSelect" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F9BC15] bg-white sm:w-64">
+            <option value="__all__">All KAMs (combined)</option>
+          </select>
+        </div>
+        <div class="h-56">
+          <canvas id="kamDailyTrendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Daily issues per KAM heatmap table -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+          <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+            <i class="fas fa-table-cells text-[#c99400]"></i> Daily Issues per KAM
+            <span class="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full font-medium">Last 14 days</span>
+          </h3>
+          <button onclick="exportKAMAnalytics()" class="px-3 py-2 bg-[#F9BC15] hover:bg-[#e0a812] text-slate-900 font-medium rounded-lg text-sm transition flex items-center gap-2">
+            <i class="fas fa-download"></i> <span class="hidden sm:inline">Export CSV</span>
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+              <tr id="kamHeatmapHeaderRow">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50">KAM</th>
+                <th class="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</th>
+              </tr>
+            </thead>
+            <tbody id="kamHeatmapBody" class="divide-y divide-slate-100">
+              <tr><td colspan="16" class="px-4 py-8 text-center text-slate-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div> <!-- /#tab-kam -->
+
   </main>
 
   <!-- Detail Modal -->
