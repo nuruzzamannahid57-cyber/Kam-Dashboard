@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
@@ -23,10 +24,44 @@
     .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
     .loading-skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: skeleton 1.5s infinite; }
     @keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ---- Login screen ---- */
+    #loginScreen {
+      position: fixed; inset: 0; z-index: 100;
+      background: linear-gradient(135deg, #0f172a 0%, #312e81 50%, #1e3a8a 100%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-card {
+      background: #fff; border-radius: 18px; padding: 40px 32px;
+      max-width: 380px; width: 90%; text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);
+    }
+    #dashboardContent.hidden, #loginScreen.hidden { display: none !important; }
   </style>
 <base target="_blank">
 </head>
 <body class="bg-slate-50 min-h-screen">
+
+  <!-- ============================================ -->
+  <!-- LOGIN SCREEN (Google Sign-In, @carrybee.com only) -->
+  <!-- ============================================ -->
+  <div id="loginScreen">
+    <div class="login-card fade-in">
+      <div class="w-14 h-14 bg-indigo-600 rounded-xl mx-auto mb-4 flex items-center justify-center">
+        <i class="fas fa-chart-line text-white text-2xl"></i>
+      </div>
+      <h1 class="text-xl font-bold text-slate-800 mb-1">KAM Escalation Dashboard</h1>
+      <p class="text-slate-500 text-sm mb-6">Sign in with your Carrybee Google account to continue</p>
+      <div id="googleSignInBtn" class="flex justify-center mb-3"></div>
+      <p id="loginError" class="hidden text-red-500 text-xs mt-3 bg-red-50 border border-red-100 rounded-lg px-3 py-2"></p>
+      <p class="text-slate-400 text-[11px] mt-5">Access restricted to @carrybee.com email addresses</p>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- DASHBOARD (hidden until authenticated) -->
+  <!-- ============================================ -->
+  <div id="dashboardContent" class="hidden">
 
   <!-- Header -->
   <header class="bg-gradient-to-r from-slate-900 via-indigo-900 to-blue-900 text-white shadow-lg sticky top-0 z-40">
@@ -50,6 +85,14 @@
         <button onclick="refreshData()" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm transition flex items-center gap-2 backdrop-blur-sm border border-white/10">
           <i class="fas fa-sync-alt" id="refreshIcon"></i> <span class="hidden sm:inline">Refresh</span>
         </button>
+        <!-- User menu -->
+        <div class="flex items-center gap-2 bg-white/10 rounded-lg pl-1 pr-2 py-1 backdrop-blur-sm border border-white/10">
+          <img id="userAvatar" src="" alt="" class="w-7 h-7 rounded-full hidden" onerror="this.classList.add('hidden')">
+          <span id="userEmail" class="text-xs text-indigo-100 hidden sm:inline max-w-[140px] truncate"></span>
+          <button onclick="logout()" title="Sign out" class="text-indigo-200 hover:text-white w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/10 transition">
+            <i class="fas fa-sign-out-alt text-xs"></i>
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -251,7 +294,145 @@
     </div>
   </div>
 
+  </div> <!-- /#dashboardContent -->
+
   <script>
+    // ============================================
+    // AUTH CONFIG — Google Sign-In restricted to @carrybee.com
+    // ============================================
+    // 1. Reuse the same OAuth Client ID you created for the OPS dashboard
+    //    (or create a new one in Google Cloud Console > APIs & Services > Credentials).
+    // 2. Add THIS dashboard's exact URL (e.g. https://your-app.onrender.com)
+    //    to "Authorized JavaScript origins" for that client — otherwise you'll
+    //    get the same 401 invalid_client error you hit before.
+    // 3. Paste the client ID below.
+    const GOOGLE_CLIENT_ID = '806093436112-8blpabf9ctj76jb4ihvqvrh4f0m9749r.apps.googleusercontent.com';
+    const ALLOWED_DOMAIN = 'carrybee.com';
+    const AUTH_SESSION_KEY = 'kam_dashboard_auth_v1';
+
+    function parseJwt(token) {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+      );
+      return JSON.parse(jsonPayload);
+    }
+
+    function showLoginError(msg) {
+      const el = document.getElementById('loginError');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function hideLoginError() {
+      document.getElementById('loginError').classList.add('hidden');
+    }
+
+    function handleCredentialResponse(response) {
+      let payload;
+      try {
+        payload = parseJwt(response.credential);
+      } catch (e) {
+        showLoginError('Could not verify sign-in. Please try again.');
+        return;
+      }
+
+      const email = (payload.email || '').toLowerCase();
+      const hd = (payload.hd || '').toLowerCase();
+      const emailDomain = email.split('@')[1] || '';
+
+      if (!payload.email_verified) {
+        showLoginError('Your Google email is not verified.');
+        return;
+      }
+
+      // Check both the hosted-domain (hd) claim and the raw email domain
+      if (hd === ALLOWED_DOMAIN || emailDomain === ALLOWED_DOMAIN) {
+        hideLoginError();
+        const session = {
+          email: payload.email,
+          name: payload.name || payload.email,
+          picture: payload.picture || '',
+          exp: payload.exp
+        };
+        sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+        enterDashboard(session);
+      } else {
+        showLoginError(`Access restricted to @${ALLOWED_DOMAIN} accounts. You signed in as ${email}.`);
+        if (window.google && google.accounts && google.accounts.id) {
+          google.accounts.id.disableAutoSelect();
+        }
+      }
+    }
+
+    function enterDashboard(session) {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('dashboardContent').classList.remove('hidden');
+
+      const emailEl = document.getElementById('userEmail');
+      emailEl.textContent = session.email;
+      emailEl.classList.remove('hidden');
+
+      const avatarEl = document.getElementById('userAvatar');
+      if (session.picture) {
+        avatarEl.src = session.picture;
+        avatarEl.classList.remove('hidden');
+      }
+
+      // Kick off data load only once authenticated
+      fetchData();
+      setInterval(fetchData, 60000);
+    }
+
+    function checkExistingSession() {
+      const raw = sessionStorage.getItem(AUTH_SESSION_KEY);
+      if (!raw) return false;
+      try {
+        const session = JSON.parse(raw);
+        const domain = (session.email || '').split('@')[1] || '';
+        const notExpired = !session.exp || (Date.now() / 1000) < session.exp;
+        if (domain === ALLOWED_DOMAIN && notExpired) {
+          enterDashboard(session);
+          return true;
+        }
+      } catch (e) { /* fall through */ }
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+      return false;
+    }
+
+    function logout() {
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.disableAutoSelect();
+      }
+      location.reload();
+    }
+
+    function initAuth() {
+      if (checkExistingSession()) return; // already signed in this tab session
+
+      if (!window.google || !google.accounts || !google.accounts.id) {
+        // Google script hasn't loaded yet — retry shortly
+        setTimeout(initAuth, 200);
+        return;
+      }
+
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse,
+        auto_select: true,
+        hd: ALLOWED_DOMAIN // hints Google to prioritize carrybee.com accounts (not a hard security boundary)
+      });
+
+      google.accounts.id.renderButton(
+        document.getElementById('googleSignInBtn'),
+        { theme: 'outline', size: 'large', width: 280, text: 'signin_with' }
+      );
+
+      google.accounts.id.prompt(); // One Tap
+    }
+
     // ============================================
     // KAM TEAM (23 members)
     // ============================================
@@ -870,12 +1051,11 @@
     });
 
     // ============================================
-    // INIT
+    // INIT — auth gate runs first; data loads only after sign-in
     // ============================================
-    fetchData();
-
-    // Auto refresh every 60 seconds
-    setInterval(fetchData, 60000);
+    initAuth();
+    // NOTE: fetchData() and the 60s auto-refresh interval are started
+    // inside enterDashboard() once the user is authenticated.
   </script>
 </body>
 </html>
