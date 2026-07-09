@@ -40,6 +40,7 @@
     #dashboardContent.hidden, #loginScreen.hidden { display: none !important; }
   </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="bg-slate-50 min-h-screen">
 
@@ -101,10 +102,10 @@
 
     <!-- Tab Navigation -->
     <div class="inline-flex bg-white rounded-lg shadow-sm border border-slate-200 p-1 mb-5">
-      <button id="tabBtn-overview" onclick="switchTab('overview')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition">
+      <button id="tabBtn-overview" onclick="switchTab('overview')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition bg-[#F9BC15] text-slate-900">
         <i class="fas fa-gauge-high mr-1.5"></i>Overview
       </button>
-      <button id="tabBtn-kam" onclick="switchTab('kam')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition">
+      <button id="tabBtn-kam" onclick="switchTab('kam')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100">
         <i class="fas fa-users mr-1.5"></i>KAM Analytics
       </button>
     </div>
@@ -698,6 +699,350 @@
       renderCharts();
       renderTable();
       updatePagination();
+      // Also update KAM analytics if that tab is active
+      if (!document.getElementById('tab-kam').classList.contains('hidden')) {
+        renderKAMAnalytics();
+      }
+    }
+
+
+    // ============================================
+    // TAB SWITCHING
+    // ============================================
+    function switchTab(tabName) {
+      // Hide all tabs
+      document.getElementById('tab-overview').classList.add('hidden');
+      document.getElementById('tab-kam').classList.add('hidden');
+
+      // Reset all buttons
+      document.getElementById('tabBtn-overview').classList.remove('bg-[#F9BC15]', 'text-slate-900');
+      document.getElementById('tabBtn-overview').classList.add('text-slate-600', 'hover:bg-slate-100');
+      document.getElementById('tabBtn-kam').classList.remove('bg-[#F9BC15]', 'text-slate-900');
+      document.getElementById('tabBtn-kam').classList.add('text-slate-600', 'hover:bg-slate-100');
+
+      // Show selected tab
+      document.getElementById('tab-' + tabName).classList.remove('hidden');
+
+      // Highlight selected button
+      const activeBtn = document.getElementById('tabBtn-' + tabName);
+      activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+      activeBtn.classList.add('bg-[#F9BC15]', 'text-slate-900');
+
+      // If switching to KAM tab, render analytics
+      if (tabName === 'kam' && allData.length > 0) {
+        renderKAMAnalytics();
+      }
+    }
+
+    // ============================================
+    // KAM ANALYTICS
+    // ============================================
+    function renderKAMAnalytics() {
+      // Calculate KAM metrics
+      const kamStats = {};
+
+      allData.forEach(d => {
+        const kam = d.kam_name || 'Unknown';
+        if (!kamStats[kam]) {
+          kamStats[kam] = {
+            total: 0,
+            pending: 0,
+            solved: 0,
+            dailyCounts: {}
+          };
+        }
+        kamStats[kam].total++;
+        if (d._statusNormalized === 'Pending' || d._statusNormalized === 'In Progress') {
+          kamStats[kam].pending++;
+        } else if (d._statusNormalized === 'Solved' || d._statusNormalized === 'Closed') {
+          kamStats[kam].solved++;
+        }
+
+        // Daily counts
+        const date = d.created_at ? d.created_at.split(' ')[0] : 'Unknown';
+        kamStats[kam].dailyCounts[date] = (kamStats[kam].dailyCounts[date] || 0) + 1;
+      });
+
+      const activeKAMs = Object.keys(kamStats).length;
+      const totalIssues = allData.length;
+      const avgPerKAM = activeKAMs > 0 ? (totalIssues / activeKAMs).toFixed(1) : 0;
+
+      // Find busiest KAM
+      let busiestKAM = '-';
+      let busiestCount = 0;
+      Object.entries(kamStats).forEach(([kam, stats]) => {
+        if (stats.total > busiestCount) {
+          busiestCount = stats.total;
+          busiestKAM = kam;
+        }
+      });
+
+      // Update KPI cards
+      document.getElementById('kamActiveCount').textContent = activeKAMs;
+      document.getElementById('kamTotalIssues').textContent = totalIssues;
+      document.getElementById('kamAvgIssues').textContent = avgPerKAM;
+      document.getElementById('kamTopName').textContent = busiestKAM;
+      document.getElementById('kamTopCount').textContent = busiestCount;
+
+      // Render KAM totals chart
+      renderKAMTotalsChart(kamStats);
+
+      // Render daily trend chart
+      renderKAMDailyTrendChart(kamStats);
+
+      // Populate KAM trend select dropdown
+      const trendSelect = document.getElementById('kamTrendSelect');
+      const currentVal = trendSelect.value;
+      trendSelect.innerHTML = '<option value="__all__">All KAMs (combined)</option>';
+      Object.keys(kamStats).sort().forEach(kam => {
+        trendSelect.innerHTML += `<option value="${kam}">${kam} (${kamStats[kam].total})</option>`;
+      });
+      if (currentVal && Array.from(trendSelect.options).some(o => o.value === currentVal)) {
+        trendSelect.value = currentVal;
+      }
+
+      // Render heatmap table
+      renderKAMHeatmap(kamStats);
+    }
+
+    function renderKAMTotalsChart(kamStats) {
+      const sortedKAMs = Object.entries(kamStats).sort((a, b) => b[1].total - a[1].total);
+      const labels = sortedKAMs.map(([kam]) => kam.split(' ').slice(-1)[0]);
+      const totals = sortedKAMs.map(([, stats]) => stats.total);
+      const colors = sortedKAMs.map(([kam]) => getKAMColor(kam));
+
+      if (charts.kamTotals) charts.kamTotals.destroy();
+      charts.kamTotals = new Chart(document.getElementById('kamTotalsChart'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Total Issues',
+            data: totals,
+            backgroundColor: colors,
+            borderRadius: 6,
+            barThickness: 20
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: function(context) {
+                  const idx = context[0].dataIndex;
+                  return sortedKAMs[idx][0];
+                }
+              }
+            }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              ticks: { stepSize: 1, font: { size: 11 } }, 
+              grid: { color: '#f1f5f9' } 
+            },
+            x: { 
+              grid: { display: false }, 
+              ticks: { font: { size: 10 }, maxRotation: 45 } 
+            }
+          }
+        }
+      });
+    }
+
+    function renderKAMDailyTrendChart(kamStats) {
+      const selectedKAM = document.getElementById('kamTrendSelect').value;
+
+      // Get all unique dates
+      const allDates = new Set();
+      Object.values(kamStats).forEach(stats => {
+        Object.keys(stats.dailyCounts).forEach(date => allDates.add(date));
+      });
+      const sortedDates = Array.from(allDates).filter(d => d !== 'Unknown').sort();
+
+      // Get last 14 days
+      const last14Days = sortedDates.slice(-14);
+
+      let datasets;
+      if (selectedKAM === '__all__') {
+        // Combined view - show top 5 KAMs
+        const topKAMs = Object.entries(kamStats)
+          .sort((a, b) => b[1].total - a[1].total)
+          .slice(0, 5);
+
+        datasets = topKAMs.map(([kam, stats]) => ({
+          label: kam.split(' ').slice(-1)[0],
+          data: last14Days.map(date => stats.dailyCounts[date] || 0),
+          borderColor: getKAMColor(kam),
+          backgroundColor: getKAMColor(kam) + '20',
+          tension: 0.3,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        }));
+      } else {
+        // Single KAM view
+        const stats = kamStats[selectedKAM];
+        if (stats) {
+          datasets = [{
+            label: 'Daily Issues',
+            data: last14Days.map(date => stats.dailyCounts[date] || 0),
+            borderColor: getKAMColor(selectedKAM),
+            backgroundColor: getKAMColor(selectedKAM) + '20',
+            tension: 0.3,
+            fill: true,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }];
+        } else {
+          datasets = [];
+        }
+      }
+
+      if (charts.kamDailyTrend) charts.kamDailyTrend.destroy();
+      charts.kamDailyTrend = new Chart(document.getElementById('kamDailyTrendChart'), {
+        type: 'line',
+        data: {
+          labels: last14Days.map(d => {
+            const date = new Date(d);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          }),
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { 
+              position: 'top', 
+              labels: { boxWidth: 12, font: { size: 11 }, padding: 10 } 
+            }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              ticks: { stepSize: 1, font: { size: 11 } }, 
+              grid: { color: '#f1f5f9' } 
+            },
+            x: { 
+              grid: { display: false }, 
+              ticks: { font: { size: 10 }, maxRotation: 45 } 
+            }
+          }
+        }
+      });
+    }
+
+    function renderKAMHeatmap(kamStats) {
+      // Get last 14 days
+      const allDates = new Set();
+      Object.values(kamStats).forEach(stats => {
+        Object.keys(stats.dailyCounts).forEach(date => allDates.add(date));
+      });
+      const sortedDates = Array.from(allDates).filter(d => d !== 'Unknown').sort();
+      const last14Days = sortedDates.slice(-14);
+
+      // Build header row
+      const headerRow = document.getElementById('kamHeatmapHeaderRow');
+      let headerHTML = '<th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50 z-10">KAM</th>';
+      headerHTML += '<th class="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider sticky left-[120px] bg-slate-50 z-10">Total</th>';
+      last14Days.forEach(date => {
+        const d = new Date(date);
+        const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        headerHTML += `<th class="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider min-w-[50px]">${label}</th>`;
+      });
+      headerRow.innerHTML = headerHTML;
+
+      // Build body rows
+      const tbody = document.getElementById('kamHeatmapBody');
+      const sortedKAMs = Object.entries(kamStats).sort((a, b) => b[1].total - a[1].total);
+
+      tbody.innerHTML = sortedKAMs.map(([kam, stats]) => {
+        const avatar = renderKAMAvatar(kam);
+        let rowHTML = `<tr class="hover:bg-slate-50 transition">`;
+        rowHTML += `<td class="px-4 py-2 text-sm text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10">`;
+        rowHTML += `<div class="flex items-center gap-2">${avatar}<span class="truncate max-w-[120px]" title="${kam}">${kam}</span></div></td>`;
+        rowHTML += `<td class="px-3 py-2 text-center text-sm font-bold text-slate-800 sticky left-[120px] bg-white hover:bg-slate-50 z-10">${stats.total}</td>`;
+
+        last14Days.forEach(date => {
+          const count = stats.dailyCounts[date] || 0;
+          let bgClass = 'bg-white';
+          let textClass = 'text-slate-300';
+
+          if (count > 0) {
+            if (count >= 5) {
+              bgClass = 'bg-red-100';
+              textClass = 'text-red-700 font-bold';
+            } else if (count >= 3) {
+              bgClass = 'bg-amber-100';
+              textClass = 'text-amber-700 font-semibold';
+            } else if (count >= 2) {
+              bgClass = 'bg-yellow-50';
+              textClass = 'text-yellow-700';
+            } else {
+              bgClass = 'bg-emerald-50';
+              textClass = 'text-emerald-700';
+            }
+          }
+
+          rowHTML += `<td class="px-2 py-2 text-center text-sm ${textClass} ${bgClass} transition">${count > 0 ? count : '·'}</td>`;
+        });
+
+        rowHTML += `</tr>`;
+        return rowHTML;
+      }).join('');
+    }
+
+    function exportKAMAnalytics() {
+      const kamStats = {};
+      allData.forEach(d => {
+        const kam = d.kam_name || 'Unknown';
+        if (!kamStats[kam]) {
+          kamStats[kam] = { total: 0, pending: 0, solved: 0, dailyCounts: {} };
+        }
+        kamStats[kam].total++;
+        if (d._statusNormalized === 'Pending' || d._statusNormalized === 'In Progress') {
+          kamStats[kam].pending++;
+        } else if (d._statusNormalized === 'Solved' || d._statusNormalized === 'Closed') {
+          kamStats[kam].solved++;
+        }
+        const date = d.created_at ? d.created_at.split(' ')[0] : 'Unknown';
+        kamStats[kam].dailyCounts[date] = (kamStats[kam].dailyCounts[date] || 0) + 1;
+      });
+
+      const allDates = new Set();
+      Object.values(kamStats).forEach(stats => {
+        Object.keys(stats.dailyCounts).forEach(date => allDates.add(date));
+      });
+      const sortedDates = Array.from(allDates).filter(d => d !== 'Unknown').sort();
+
+      const headers = ['KAM Name', 'Total Issues', 'Pending', 'Solved', 'Resolution Rate %', ...sortedDates];
+      const rows = Object.entries(kamStats).sort((a, b) => b[1].total - a[1].total).map(([kam, stats]) => {
+        const rate = stats.total > 0 ? Math.round((stats.solved / stats.total) * 100) : 0;
+        return [
+          kam,
+          stats.total,
+          stats.pending,
+          stats.solved,
+          rate,
+          ...sortedDates.map(d => stats.dailyCounts[d] || 0)
+        ];
+      });
+
+      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kam_analytics_' + new Date().toISOString().split('T')[0] + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     function renderKPIs() {
@@ -1174,6 +1519,22 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeModal();
+    });
+
+    document.getElementById('kamTrendSelect').addEventListener('change', () => {
+      if (allData.length > 0) {
+        const kamStats = {};
+        allData.forEach(d => {
+          const kam = d.kam_name || 'Unknown';
+          if (!kamStats[kam]) {
+            kamStats[kam] = { total: 0, dailyCounts: {} };
+          }
+          kamStats[kam].total++;
+          const date = d.created_at ? d.created_at.split(' ')[0] : 'Unknown';
+          kamStats[kam].dailyCounts[date] = (kamStats[kam].dailyCounts[date] || 0) + 1;
+        });
+        renderKAMDailyTrendChart(kamStats);
+      }
     });
 
     // ============================================
