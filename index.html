@@ -64,7 +64,7 @@
   <div id="dashboardContent" class="hidden">
 
   <!-- Header -->
-  <header class="bg-gradient-to-r from-[#1c1c1c] via-[#242424] to-[#1c1c1c] text-white shadow-lg sticky top-0 z-40 border-b-[3px] border-[#F9BC15]">
+  <header class="bg-gradient-to-r from-[#1c1c1c] via-[#242424] to-[#1c1c1c] text-white shadow-lg sticky top-0 z-40 border-b-[3px] border-amber-400">
     <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="bg-white rounded-lg px-2.5 py-2 flex items-center shadow-sm">
@@ -102,7 +102,7 @@
 
     <!-- Tab Navigation -->
     <div class="inline-flex bg-white rounded-lg shadow-sm border border-slate-200 p-1 mb-5">
-      <button id="tabBtn-overview" onclick="switchTab('overview')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition bg-[#F9BC15] text-slate-900">
+      <button id="tabBtn-overview" onclick="switchTab('overview')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition bg-amber-400 text-slate-900">
         <i class="fas fa-gauge-high mr-1.5"></i>Overview
       </button>
       <button id="tabBtn-kam" onclick="switchTab('kam')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100">
@@ -164,10 +164,10 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Avg Response Time</p>
-            <p id="avgTime" class="text-2xl font-bold text-[#c99400] mt-1">-</p>
+            <p id="avgTime" class="text-2xl font-bold text-amber-600 mt-1">-</p>
           </div>
-          <div class="w-11 h-11 bg-[#FEF6DC] rounded-xl flex items-center justify-center">
-            <i class="fas fa-stopwatch text-[#c99400] text-lg"></i>
+          <div class="w-11 h-11 bg-amber-50 rounded-xl flex items-center justify-center">
+            <i class="fas fa-stopwatch text-amber-600 text-lg"></i>
           </div>
         </div>
         <div class="mt-3 text-xs text-slate-500">From created to solved</div>
@@ -178,7 +178,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          <i class="fas fa-pie-chart text-[#c99400]"></i> Status Distribution
+          <i class="fas fa-pie-chart text-amber-600"></i> Status Distribution
         </h3>
         <div class="h-48">
           <canvas id="statusChart"></canvas>
@@ -187,7 +187,7 @@
 
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 lg:col-span-2">
         <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          <i class="fas fa-chart-bar text-[#c99400]"></i> Escalations Over Time
+          <i class="fas fa-chart-bar text-amber-600"></i> Escalations Over Time
         </h3>
         <div class="h-48">
           <canvas id="timeChart"></canvas>
@@ -199,7 +199,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          <i class="fas fa-users text-[#c99400]"></i> By KAM
+          <i class="fas fa-users text-amber-600"></i> By KAM
         </h3>
         <div class="h-48">
           <canvas id="kamChart"></canvas>
@@ -207,7 +207,7 @@
       </div>
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          <i class="fas fa-tags text-[#c99400]"></i> By Category
+          <i class="fas fa-tags text-amber-600"></i> By Category
         </h3>
         <div class="h-48">
           <canvas id="categoryChart"></canvas>
@@ -215,7 +215,7 @@
       </div>
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          <i class="fas fa-map-marker-alt text-[#c99400]"></i> By Zone
+          <i class="fas fa-map-marker-alt text-amber-600"></i> By Zone
         </h3>
         <div class="h-48">
           <canvas id="zoneChart"></canvas>
@@ -228,28 +228,28 @@
       <div class="p-4 border-b border-slate-100">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
-            <i class="fas fa-list text-[#c99400]"></i> All Escalations
+            <i class="fas fa-list text-amber-600"></i> All Escalations
             <span id="totalBadge" class="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full font-medium">0</span>
           </h3>
           <div class="flex flex-wrap items-center gap-2">
             <div class="relative">
               <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
               <input type="text" id="searchInput" placeholder="Search issues, KAM, ref ID..." 
-                class="pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F9BC15] w-full sm:w-56">
+                class="pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 w-full sm:w-56">
             </div>
-            <select id="statusFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F9BC15] bg-white">
+            <select id="statusFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
               <option value="all">All Status</option>
             </select>
-            <select id="kamFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F9BC15] bg-white">
+            <select id="kamFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
               <option value="all">All KAMs</option>
             </select>
-            <select id="zoneFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F9BC15] bg-white">
+            <select id="zoneFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
               <option value="all">All Zones</option>
             </select>
-            <select id="categoryFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F9BC15] bg-white">
+            <select id="categoryFilter" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
               <option value="all">All Categories</option>
             </select>
-            <button onclick="exportData()" class="px-3 py-2 bg-[#F9BC15] hover:bg-[#e0a812] text-slate-900 font-medium rounded-lg text-sm transition flex items-center gap-2">
+            <button onclick="exportData()" class="px-3 py-2 bg-amber-400 hover:bg-amber-500 text-slate-900 font-medium rounded-lg text-sm transition flex items-center gap-2">
               <i class="fas fa-download"></i> <span class="hidden sm:inline">Export CSV</span>
             </button>
           </div>
@@ -301,8 +301,8 @@
               <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Active KAMs</p>
               <p id="kamActiveCount" class="text-2xl font-bold text-slate-800 mt-1">-</p>
             </div>
-            <div class="w-11 h-11 bg-[#FEF6DC] rounded-xl flex items-center justify-center">
-              <i class="fas fa-users text-[#c99400] text-lg"></i>
+            <div class="w-11 h-11 bg-amber-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-users text-amber-600 text-lg"></i>
             </div>
           </div>
           <div class="mt-3 text-xs text-slate-500">With at least one issue</div>
@@ -327,8 +327,8 @@
               <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">Avg / KAM</p>
               <p id="kamAvgIssues" class="text-2xl font-bold text-indigo-600 mt-1" style="color:#c99400">-</p>
             </div>
-            <div class="w-11 h-11 bg-[#FEF6DC] rounded-xl flex items-center justify-center">
-              <i class="fas fa-scale-balanced text-[#c99400] text-lg"></i>
+            <div class="w-11 h-11 bg-amber-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-scale-balanced text-amber-600 text-lg"></i>
             </div>
           </div>
           <div class="mt-3 text-xs text-slate-500">Issues per active KAM</div>
@@ -351,7 +351,7 @@
       <!-- Total Issues by KAM chart -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
         <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          <i class="fas fa-chart-bar text-[#c99400]"></i> Total Issues by KAM
+          <i class="fas fa-chart-bar text-amber-600"></i> Total Issues by KAM
         </h3>
         <div class="h-64">
           <canvas id="kamTotalsChart"></canvas>
@@ -362,9 +362,9 @@
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <i class="fas fa-chart-line text-[#c99400]"></i> Daily Issue Trend
+            <i class="fas fa-chart-line text-amber-600"></i> Daily Issue Trend
           </h3>
-          <select id="kamTrendSelect" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F9BC15] bg-white sm:w-64">
+          <select id="kamTrendSelect" class="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white sm:w-64">
             <option value="__all__">All KAMs (combined)</option>
           </select>
         </div>
@@ -377,10 +377,10 @@
       <div class="bg-white rounded-xl shadow-sm border border-slate-200">
         <div class="p-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
           <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
-            <i class="fas fa-table-cells text-[#c99400]"></i> Daily Issues per KAM
+            <i class="fas fa-table-cells text-amber-600"></i> Daily Issues per KAM
             <span class="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full font-medium">Last 14 days</span>
           </h3>
-          <button onclick="exportKAMAnalytics()" class="px-3 py-2 bg-[#F9BC15] hover:bg-[#e0a812] text-slate-900 font-medium rounded-lg text-sm transition flex items-center gap-2">
+          <button onclick="exportKAMAnalytics()" class="px-3 py-2 bg-amber-400 hover:bg-amber-500 text-slate-900 font-medium rounded-lg text-sm transition flex items-center gap-2">
             <i class="fas fa-download"></i> <span class="hidden sm:inline">Export CSV</span>
           </button>
         </div>
@@ -408,8 +408,8 @@
     <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto fade-in">
       <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-xl">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 bg-[#FEF6DC] rounded-lg flex items-center justify-center">
-            <i class="fas fa-file-alt text-[#c99400] text-sm"></i>
+          <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
+            <i class="fas fa-file-alt text-amber-600 text-sm"></i>
           </div>
           <h3 class="text-lg font-bold text-slate-800">Escalation Details</h3>
         </div>
@@ -714,19 +714,20 @@
       document.getElementById('tab-overview').classList.add('hidden');
       document.getElementById('tab-kam').classList.add('hidden');
 
-      // Reset all buttons
-      document.getElementById('tabBtn-overview').classList.remove('bg-[#F9BC15]', 'text-slate-900');
-      document.getElementById('tabBtn-overview').classList.add('text-slate-600', 'hover:bg-slate-100');
-      document.getElementById('tabBtn-kam').classList.remove('bg-[#F9BC15]', 'text-slate-900');
-      document.getElementById('tabBtn-kam').classList.add('text-slate-600', 'hover:bg-slate-100');
+      // Reset all buttons - use className to avoid bracket issues
+      const btnOverview = document.getElementById('tabBtn-overview');
+      const btnKam = document.getElementById('tabBtn-kam');
+
+      // Remove active classes, add inactive classes
+      btnOverview.className = 'tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100';
+      btnKam.className = 'tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100';
 
       // Show selected tab
       document.getElementById('tab-' + tabName).classList.remove('hidden');
 
       // Highlight selected button
       const activeBtn = document.getElementById('tabBtn-' + tabName);
-      activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-100');
-      activeBtn.classList.add('bg-[#F9BC15]', 'text-slate-900');
+      activeBtn.className = 'tab-btn px-4 py-2 rounded-md text-sm font-semibold transition bg-amber-400 text-slate-900';
 
       // If switching to KAM tab, render analytics
       if (tabName === 'kam' && allData.length > 0) {
@@ -1275,7 +1276,7 @@
             </td>
             <td class="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">${solvedDate !== '-' ? '<span class="text-emerald-600"><i class="fas fa-check text-xs mr-1"></i>' + solvedDate + '</span>' : '<span class="text-slate-300">-</span>'}</td>
             <td class="px-4 py-3">
-              <button onclick="viewDetails(${item.id})" class="text-[#c99400] hover:text-[#8a6400] text-sm font-medium px-2 py-1 rounded hover:bg-[#FEF6DC] transition">
+              <button onclick="viewDetails(${item.id})" class="text-amber-600 hover:text-amber-700 text-sm font-medium px-2 py-1 rounded hover:bg-amber-50 transition">
                 View
               </button>
             </td>
