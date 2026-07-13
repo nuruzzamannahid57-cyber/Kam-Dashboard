@@ -41,6 +41,7 @@
   </style>
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="bg-slate-50 min-h-screen">
 
@@ -107,6 +108,9 @@
       </button>
       <button id="tabBtn-kam" onclick="switchTab('kam')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100">
         <i class="fas fa-users mr-1.5"></i>KAM Analytics
+      </button>
+      <button id="tabBtn-irmail" onclick="switchTab('irmail')" class="tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100">
+        <i class="fas fa-envelope mr-1.5"></i>IR Mail
       </button>
     </div>
 
@@ -400,6 +404,79 @@
       </div>
 
     </div> <!-- /#tab-kam -->
+
+    <!-- ===================== TAB: IR MAIL ISSUES ===================== -->
+    <div id="tab-irmail" class="hidden">
+      <div class="max-w-xl mx-auto">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-envelope text-amber-600 text-lg"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-slate-800">IR Mail Issue</h3>
+              <p class="text-xs text-slate-500">Submit a new escalation to the IR-issue database</p>
+            </div>
+          </div>
+
+          <form id="irMailForm" onsubmit="submitIRMail(event)">
+            <div class="mb-4">
+              <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                Subject Line <span class="text-red-500">*</span>
+              </label>
+              <input type="text" id="irSubject" required placeholder="e.g. Merchant payout delay - Zone A"
+                class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition">
+            </div>
+
+            <div class="mb-4">
+              <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                KAM Name <span class="text-red-500">*</span>
+              </label>
+              <select id="irKamName" required
+                class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent bg-white transition">
+                <option value="" disabled selected>Select KAM</option>
+                <option>Akash Saha</option>
+                <option>Md. Sohel Rana</option>
+                <option>Md. Mahmudul Hasan</option>
+                <option>Sazzad Haider</option>
+                <option>Rizvi Ahmed</option>
+                <option>Md. Anik Ahamed</option>
+                <option>Md. Asif Rayhan</option>
+                <option>Jubayer Rahman</option>
+                <option>Rahul Roy</option>
+                <option>Ahmed Asif Rashid</option>
+                <option>Md Ibrahim Mojumder</option>
+                <option>Nuruzzaman Nahid</option>
+                <option>Md. Solayman Shadik Shady</option>
+                <option>Shabib Md Shahnawaj</option>
+                <option>Shohanur Rahman Shuvo</option>
+                <option>S. M Shihab</option>
+                <option>Md. Kayef Ahmed</option>
+                <option>Jaber Al Aunto</option>
+                <option>Tanvir Ahmmed</option>
+                <option>MD Rakib Chowdhury</option>
+                <option>Raian Islam Rudra</option>
+                <option>Hasib Islam</option>
+                <option>Abdul Goni Howlader</option>
+              </select>
+            </div>
+
+            <div class="mb-6">
+              <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Issue Details</label>
+              <textarea id="irIssueDetails" rows="4" placeholder="Brief description of the IR mail issue..."
+                class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-y transition"></textarea>
+            </div>
+
+            <button type="submit" id="irSubmitBtn"
+              class="w-full py-3 bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold text-sm rounded-lg transition flex items-center justify-center gap-2">
+              <i class="fas fa-paper-plane"></i> Submit to Turso
+            </button>
+          </form>
+
+          <div id="irResultMsg" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+        </div>
+      </div>
+    </div> <!-- /#tab-irmail -->
 
   </main>
 
@@ -713,14 +790,16 @@
       // Hide all tabs
       document.getElementById('tab-overview').classList.add('hidden');
       document.getElementById('tab-kam').classList.add('hidden');
+      document.getElementById('tab-irmail').classList.add('hidden');
 
-      // Reset all buttons - use className to avoid bracket issues
+      // Reset all buttons
       const btnOverview = document.getElementById('tabBtn-overview');
       const btnKam = document.getElementById('tabBtn-kam');
+      const btnIrMail = document.getElementById('tabBtn-irmail');
 
-      // Remove active classes, add inactive classes
       btnOverview.className = 'tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100';
       btnKam.className = 'tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100';
+      btnIrMail.className = 'tab-btn px-4 py-2 rounded-md text-sm font-semibold transition text-slate-600 hover:bg-slate-100';
 
       // Show selected tab
       document.getElementById('tab-' + tabName).classList.remove('hidden');
@@ -1537,6 +1616,82 @@
         renderKAMDailyTrendChart(kamStats);
       }
     });
+
+    // ============================================
+    // IR MAIL ISSUE — Submit to dedicated Turso DB
+    // ============================================
+    const IR_TURSO_URL  = 'https://ir-issue-nuruzzaman.aws-ap-south-1.turso.io/v2/pipeline';
+    const IR_TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODM5NzU5NDQsImlkIjoiMDE5ZjVkM2YtZmQwMS03MWJjLTg3NmEtMDljYjYzMjU2OTA3Iiwia2lkIjoiOExPbnVlZ2FMWlp6QkpYRl9FakY0T1JvMk5rZUlpZ3M3TFptenFhMnBRRSIsInJpZCI6ImQ1ODUxODBkLWQ4MWYtNDdkMy05YzE1LTg4ZmQzNGZjODAzOSJ9.TCdBTnBepck1_eyNP9vIVMiwTEEEkeBbajoz5Rm-0Ft-Zh69XKbNT4ZsQKyNq1HdWmg5cMHmWigkLTQlJGTVDA';
+
+    async function submitIRMail(e) {
+      e.preventDefault();
+      const btn = document.getElementById('irSubmitBtn');
+      const msg = document.getElementById('irResultMsg');
+      const originalText = btn.innerHTML;
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Submitting...';
+      btn.classList.add('opacity-70');
+      msg.classList.add('hidden');
+
+      const subject = document.getElementById('irSubject').value.trim();
+      const kam     = document.getElementById('irKamName').value;
+      const details = document.getElementById('irIssueDetails').value.trim();
+
+      const refId = 'IR-' + Date.now().toString(36).toUpperCase();
+      const now   = new Date().toISOString().replace('T',' ').slice(0,19);
+
+      const sql = `INSERT INTO escalations (
+        ref_id, kam_name, issue_details, issue_category,
+        issue_status, created_at, updated_at, channel
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+
+      const args = [
+        { type: 'text', value: refId },
+        { type: 'text', value: kam },
+        { type: 'text', value: subject + (details ? ' | ' + details : '') },
+        { type: 'text', value: 'IR Mail' },
+        { type: 'text', value: 'Pending' },
+        { type: 'text', value: now },
+        { type: 'text', value: now },
+        { type: 'text', value: 'IR Mail' }
+      ];
+
+      try {
+        const res = await fetch(IR_TURSO_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + IR_TURSO_TOKEN,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            requests: [
+              { type: 'execute', stmt: { sql: sql, args: args } },
+              { type: 'close' }
+            ]
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.results && data.results[0] && data.results[0].type === 'ok') {
+          msg.classList.remove('hidden');
+          msg.className = 'mt-4 p-3 rounded-lg text-sm bg-emerald-50 text-emerald-700 border border-emerald-200';
+          msg.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> <strong>Success!</strong> Saved to IR-issue DB. Ref: <code class="font-mono bg-emerald-100 px-1 rounded">' + refId + '</code>';
+          document.getElementById('irMailForm').reset();
+        } else {
+          throw new Error(data.message || 'Insert failed');
+        }
+      } catch (err) {
+        msg.classList.remove('hidden');
+        msg.className = 'mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200';
+        msg.innerHTML = '<i class="fas fa-exclamation-circle mr-1.5"></i> <strong>Error:</strong> ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        btn.classList.remove('opacity-70');
+      }
+    }
 
     // ============================================
     // INIT — auth gate runs first; data loads only after sign-in
