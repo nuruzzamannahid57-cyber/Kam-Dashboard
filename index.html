@@ -1684,6 +1684,40 @@
       } catch (e) {
         console.log('Table may already exist:', e.message);
       }
+
+      // The live table already existed from before with a different/incomplete
+      // schema, so CREATE TABLE IF NOT EXISTS above is a no-op. Make sure every
+      // column the app needs is actually present by trying ALTER TABLE ADD COLUMN
+      // for each one. SQLite errors out (harmlessly, caught below) if a column
+      // already exists, so this is safe to re-run every time the page loads.
+      const requiredColumns = [
+        'kam_name TEXT',
+        'status TEXT DEFAULT \'Pending\'',
+        'assignee TEXT',
+        'created_at TEXT',
+        'solved_at TEXT',
+        'subject_line TEXT'
+      ];
+
+      for (const colDef of requiredColumns) {
+        try {
+          await fetch(IR_TURSO_URL, {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + IR_TURSO_TOKEN,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              requests: [
+                { type: 'execute', stmt: { sql: `ALTER TABLE "IR Issues" ADD COLUMN ${colDef}` } },
+                { type: 'close' }
+              ]
+            })
+          });
+        } catch (e) {
+          // Column already exists (or another harmless issue) - ignore
+        }
+      }
     }
 
     async function fetchIRMailData() {
@@ -1938,6 +1972,8 @@
         }
 
         if (data.results && data.results[0] && data.results[0].type === 'ok') {
+          const insertResult = data.results[0].response && data.results[0].response.result;
+          const refId = (insertResult && (insertResult.last_insert_rowid || insertResult.lastInsertRowid)) || 'N/A';
           msg.classList.remove('hidden');
           msg.className = 'mt-4 p-3 rounded-lg text-sm bg-emerald-50 text-emerald-700 border border-emerald-200';
           msg.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> <strong>Success!</strong> Saved to IR-issue DB. Ref: <code class="font-mono bg-emerald-100 px-1 rounded">' + refId + '</code>';
