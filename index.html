@@ -1763,7 +1763,11 @@
         }
 
         const result = firstResult.response.result;
-        const cols = result.cols ? result.cols.map(c => c.name) : [];
+        // Lowercase column names - the live table has "Kam_Name" (mixed case)
+        // while the app reads/writes "kam_name" everywhere. SQL itself resolves
+        // this case-insensitively, but JS object keys are case-sensitive, so
+        // without this, item.kam_name would come back undefined.
+        const cols = result.cols ? result.cols.map(c => c.name.toLowerCase()) : [];
         const rows = result.rows || [];
 
         irMailData = rows.map(row => {
