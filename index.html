@@ -489,8 +489,11 @@
                   <input type="checkbox" id="irSelectAll" onclick="toggleIRSelectAll()" class="rounded border-slate-300 text-amber-500 focus:ring-amber-400">
                 </th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Mail Subject</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">KAM Name</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Assignee</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Created</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Solved</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -837,9 +840,9 @@
       if (tabName === 'kam' && allData.length > 0) {
         renderKAMAnalytics();
       }
-      // If switching to IR Mail tab, fetch data
+      // If switching to IR Mail tab, ensure table exists then fetch data
       if (tabName === 'irmail') {
-        fetchIRMailData();
+        ensureIRTable().then(() => fetchIRMailData());
       }
     }
 
@@ -1654,6 +1657,35 @@
 
     let irMailData = [];
 
+    async function ensureIRTable() {
+      const createSQL = `CREATE TABLE IF NOT EXISTS "IR Issues" (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject_line TEXT,
+        kam_name TEXT,
+        assignee TEXT,
+        created_at TEXT,
+        solved_at TEXT,
+        status TEXT DEFAULT 'Pending'
+      )`;
+      try {
+        await fetch(IR_TURSO_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + IR_TURSO_TOKEN,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            requests: [
+              { type: 'execute', stmt: { sql: createSQL } },
+              { type: 'close' }
+            ]
+          })
+        });
+      } catch (e) {
+        console.log('Table may already exist:', e.message);
+      }
+    }
+
     async function fetchIRMailData() {
       const icon = document.getElementById('irRefreshIcon');
       if (icon) icon.classList.add('fa-spin');
@@ -1709,13 +1741,15 @@
               obj[col] = null;
             }
           });
+          // Normalize status for display
+          obj._statusNormalized = normalizeStatus(obj.status || obj.issue_status);
           return obj;
         });
 
         renderIRMailTable();
       } catch (e) {
         console.error('IR fetch error:', e);
-        document.getElementById('irTableBody').innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-red-400"><i class="fas fa-exclamation-triangle mr-2"></i> ' + e.message + '</td></tr>';
+        document.getElementById('irTableBody').innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-red-400"><i class="fas fa-exclamation-triangle mr-2"></i> ' + e.message + '</td></tr>';
       } finally {
         if (icon) setTimeout(() => icon.classList.remove('fa-spin'), 500);
       }
@@ -1726,13 +1760,17 @@
       document.getElementById('irTotalBadge').textContent = irMailData.length;
 
       if (irMailData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400"><i class="fas fa-inbox mr-2"></i> No IR mail issues found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-slate-400"><i class="fas fa-inbox mr-2"></i> No IR mail issues found</td></tr>';
         return;
       }
 
       tbody.innerHTML = irMailData.map(item => {
+        const status = item._statusNormalized || 'Pending';
+        const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['Pending'];
+        const kamAvatar = item.kam_name ? renderKAMAvatar(item.kam_name) : '';
         const assigneeAvatar = item.assignee ? renderKAMAvatar(item.assignee) : '';
         const createdDate = item.created_at ? formatDate(item.created_at) : '-';
+        const solvedDate = item.solved_at ? formatDate(item.solved_at) : '-';
         const subjectLine = item.subject_line || '-';
 
         return `
@@ -1746,11 +1784,26 @@
             </td>
             <td class="px-4 py-3 text-sm text-slate-600">
               <div class="flex items-center gap-2">
-                ${assigneeAvatar}
-                <span class="truncate max-w-[120px]" title="${item.assignee || ''}">${item.assignee || '-'}</span>
+                ${kamAvatar}
+                <span class="truncate max-w-[120px]" title="${item.kam_name || ''}">${item.kam_name || '-'}</span>
               </div>
             </td>
+            <td class="px-4 py-3 text-sm text-slate-600">
+              ${item.assignee 
+                ? '<div class="flex items-center gap-2">' + assigneeAvatar + '<span class="truncate max-w-[120px]" title="' + item.assignee + '">' + item.assignee + '</span></div>'
+                : '<span class="text-slate-400 italic text-xs">Not assigned</span>'}
+            </td>
             <td class="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">${createdDate}</td>
+            <td class="px-4 py-3 text-sm whitespace-nowrap">
+              ${solvedDate !== '-' 
+                ? '<span class="text-emerald-600"><i class="fas fa-check text-xs mr-1"></i>' + solvedDate + '</span>' 
+                : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="px-4 py-3">
+              <span class="status-badge ${cfg.bg} ${cfg.text} border ${cfg.border}">
+                <i class="fas ${cfg.icon} text-[10px]"></i> ${status}
+              </span>
+            </td>
             <td class="px-4 py-3">
               <button onclick="viewIRDetails(${item.id})" class="text-amber-600 hover:text-amber-700 text-sm font-medium px-2 py-1 rounded hover:bg-amber-50 transition">
                 View
@@ -1765,18 +1818,26 @@
       const item = irMailData.find(d => d.id == id);
       if (!item) return;
 
+      const status = item._statusNormalized || 'Pending';
+      const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['Pending'];
+      const kamAvatar = item.kam_name ? renderKAMAvatar(item.kam_name) : '';
       const assigneeAvatar = item.assignee ? renderKAMAvatar(item.assignee) : '';
       const subjectLine = item.subject_line || '-';
 
       document.getElementById('modalContent').innerHTML = `
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
-            <i class="fas fa-envelope text-amber-600"></i>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+              <i class="fas fa-envelope text-amber-600"></i>
+            </div>
+            <div>
+              <div class="font-semibold text-slate-800">IR Mail Issue</div>
+              <div class="text-xs text-slate-500">IR-${item.id}</div>
+            </div>
           </div>
-          <div>
-            <div class="font-semibold text-slate-800">IR Mail Issue</div>
-            <div class="text-xs text-slate-500">IR-${item.id}</div>
-          </div>
+          <span class="status-badge ${cfg.bg} ${cfg.text} border ${cfg.border}">
+            <i class="fas ${cfg.icon} text-[10px]"></i> ${status}
+          </span>
         </div>
 
         <div class="p-4 bg-slate-50 rounded-lg border border-slate-100 mb-3">
@@ -1784,16 +1845,26 @@
           <p class="text-slate-800 text-sm font-medium">${subjectLine}</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 text-sm">
+        <div class="grid grid-cols-2 gap-3 text-sm mb-3">
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">KAM Name</span>
+            <p class="text-slate-700 mt-1 flex items-center gap-2">
+              ${item.kam_name ? kamAvatar + '<span>' + item.kam_name + '</span>' : '<span class="text-slate-400 italic">-</span>'}
+            </p>
+          </div>
           <div class="bg-slate-50 p-3 rounded-lg">
             <span class="text-slate-500 text-xs uppercase tracking-wider">Assignee</span>
             <p class="text-slate-700 mt-1 flex items-center gap-2">
-              ${item.assignee ? assigneeAvatar + '<span>' + item.assignee + '</span>' : '<span class="text-slate-400 italic">-</span>'}
+              ${item.assignee ? assigneeAvatar + '<span>' + item.assignee + '</span>' : '<span class="text-slate-400 italic">Not assigned</span>'}
             </p>
           </div>
           <div class="bg-slate-50 p-3 rounded-lg">
             <span class="text-slate-500 text-xs uppercase tracking-wider">Created</span>
             <p class="text-slate-700 mt-1">${formatDateTime(item.created_at)}</p>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg">
+            <span class="text-slate-500 text-xs uppercase tracking-wider">Solved</span>
+            <p class="text-slate-700 mt-1">${item.solved_at ? formatDateTime(item.solved_at) : '<span class="text-slate-400">Not solved yet</span>'}</p>
           </div>
         </div>
       `;
@@ -1828,12 +1899,15 @@
       // Columns: id, subject_line, assignee, created_at
       // We insert subject_line and kam_name (stored as assignee initially, or we can add kam_name column)
       // Based on the schema shown: id, subject_line, assignee, created_at
-      const sql = `INSERT INTO "IR Issues" (subject_line, assignee, created_at) VALUES (?, ?, ?)`;
+      const sql = `INSERT INTO "IR Issues" (subject_line, kam_name, assignee, status, created_at, solved_at) VALUES (?, ?, ?, ?, ?, ?)`;
 
       const args = [
         { type: 'text', value: subject },
-        { type: 'text', value: kam },   // KAM name goes into assignee initially
-        { type: 'text', value: now }
+        { type: 'text', value: kam },
+        { type: 'null' },   // assignee - will be filled by IR team later
+        { type: 'text', value: 'Pending' },
+        { type: 'text', value: now },
+        { type: 'null' }    // solved_at - will be filled when resolved
       ];
 
       try {
